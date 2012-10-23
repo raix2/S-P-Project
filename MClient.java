@@ -1,6 +1,11 @@
 import java.net.*;
 import java.io.*;
 
+import javax.net.SocketFactory;
+import javax.net.ssl.HttpsURLConnection;
+import javax.net.ssl.SSLSocket;
+import javax.net.ssl.SSLSocketFactory;
+
 public class MClient {
 	public static void main(String argv[]) throws Exception {
 		if(argv.length < 2) {
@@ -9,7 +14,8 @@ public class MClient {
 		}		
 		int port = Integer.parseInt(argv[0]);
 		System.out.println("Opening connection...");
-		Socket cSock;
+		SSLSocketFactory factory = HttpsURLConnection.getDefaultSSLSocketFactory();
+		SSLSocket cSock;
 		OutputStream out;
 		DataOutputStream outData;
 		String fname;
@@ -18,7 +24,9 @@ public class MClient {
 		long flen;
 		// Send files
 		for(int i = 1; i<argv.length; i++) {
-			cSock = new Socket("localhost", port);
+			cSock = (SSLSocket)factory.createSocket("localhost", port);
+			cSock.startHandshake();
+			java.security.cert.Certificate[] serverCerts = cSock.getSession().getPeerCertificates(); // Retrieve server's certificate
 			out = cSock.getOutputStream(); // Get the output stream
 			outData = new DataOutputStream(out); // To send bytes as strings
 			fname = argv[i];
@@ -28,7 +36,7 @@ public class MClient {
 			fname = f.getName();
 			outData.writeBytes("\r\nSTARTFILEREADING\r\n"+fname+"\r\n"+flen+"\r\n");
 			System.out.println("Sent name "+fname);
-			cSock = new Socket("localhost", port); // Send file
+			cSock = (SSLSocket)factory.createSocket("localhost", port); // Send file
 			out = cSock.getOutputStream(); // Get the output stream
 			byte[] buf = new byte[1024];
 			int len;
