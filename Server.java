@@ -93,6 +93,7 @@ public class Server {
 				System.out.println("============================\nA user has connected!");
 				out = sock.getOutputStream();
 				dataOut = new DataOutputStream(out);
+				// Send welcome message to ensure user knows connection is successful
 				dataOut.writeBytes("Welcome to the Cloud");
 				sock.close();
 				out.close();
