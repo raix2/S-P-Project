@@ -3,6 +3,19 @@ import java.io.*;
 	
 public class Cloud_Provider {
 	
+	public void upload() {
+		// Connection stuff to receive from user
+		// Receive number of bytes of file
+		BigDecimal a1 = new BigDecimal("8250325.12");
+	      BigDecimal b1 = new BigDecimal("4321456.31");
+	      System.out.println(NumberFormat.getCurrencyInstance().format(c1)); fileSize = 0;
+		// Convert to mb
+		fileSize /= 1024;
+		// Now get money
+		// Connect to bank
+		
+	}
+	
 	public static void main(String[] arstring) throws IOException
 	{
 		try{	
