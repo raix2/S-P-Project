@@ -10,6 +10,8 @@ import java.security.cert.CertificateException;
 
 import javax.net.ssl.*;
 
+import java.util.*;
+
 
 public class Client {
 	static private java.security.cert.Certificate cert;
@@ -20,19 +22,16 @@ public class Client {
 	static private int port;
 	static private InputStream in;
 	
-	static public SSLSocket newSocket() throws UnknownHostException, IOException, InvalidKeyException, CertificateException, NoSuchAlgorithmException, NoSuchProviderException, SignatureException {
+	static public void newSocket() throws UnknownHostException, IOException, InvalidKeyException, CertificateException, NoSuchAlgorithmException, NoSuchProviderException, SignatureException {
 		SSLSocketFactory factory = HttpsURLConnection.getDefaultSSLSocketFactory();
-		SSLSocket sock = (SSLSocket)factory.createSocket(hostname, port);
-		sock.startHandshake();
+		cSock = (SSLSocket)factory.createSocket(hostname, port);
+		cSock.startHandshake();
 		java.security.cert.Certificate[] serverCerts =
-	    	sock.getSession().getPeerCertificates();
+	    	cSock.getSession().getPeerCertificates();
 	    
 	    // Let's do some stuff yo
-	    System.out.println("Look we have the server's certificates!");
-	    // Verify
+	   // Verify
 	    serverCerts[0].verify(cert.getPublicKey());
-	    System.out.println("And it's verified!");
-		return sock;
 	}
 	
 	static public void closeAll() throws IOException {
@@ -41,34 +40,29 @@ public class Client {
 		outData.close();
 	}
 	
+	static public void initOut() throws IOException {
+		out = cSock.getOutputStream();
+		outData = new DataOutputStream(out);
+	}
+	
 	static public void upload(String[] argv) throws IOException, InvalidKeyException, CertificateException, NoSuchAlgorithmException, NoSuchProviderException, SignatureException {
 	    String fname;
 	    InputStream in;
 	    File f;
 	    long flen;
 	    // Send files
-	    for(int i = 1; i<argv.length; i++) {
-		    System.out.println("Start file loop");
-		    cSock = newSocket();
-		    System.out.println("Created socket");
-		    out = cSock.getOutputStream(); // Get the output stream
-		    System.out.println("Got Output Stream");
-		    outData = new DataOutputStream(out); // To send bytes as strings
-		    System.out.println("Got data output stream");
+	    for(int i = 0; i<argv.length; i++) {
+		    newSocket();
+		    initOut();
 		    fname = argv[i];
-		    System.out.println("Got name"+fname);
 		    in = new FileInputStream(fname);
-		    System.out.println("File input stream");
 		    f = new File(fname);
-		    System.out.println("Open file");
-		    flen = f.length();
-		    System.out.println("Got length");
-		    fname = f.getName();
-		    System.out.println("Sent name "+fname);
+		    flen = f.length(); // Get file size
+		    fname = f.getName(); // Get file name
 		    outData.writeBytes("\r\nSTARTFILEREADING\r\n"+fname+"\r\n"+flen+"\r\n");
 		    System.out.println("Sent name "+fname);
 		    closeAll();
-		    cSock = newSocket(); // Send file
+		    newSocket(); // Send file
 		    out = cSock.getOutputStream(); // Get the output stream
 		    byte[] buf = new byte[1024];
 		    int len;
@@ -81,21 +75,21 @@ public class Client {
 		    closeAll();
 		    in.close();
 	    }
-	    cSock = newSocket();
+	    newSocket();
 	    System.out.println("Ending socket");
-	    out = cSock.getOutputStream(); // Get the output stream
-	    System.out.println("Got Output Stream");
-	    outData = new DataOutputStream(out); // To send bytes as strings
+	    initOut();
 	    outData.writeBytes("\n\rENDFILEUPLOAD\n\r");
 	    closeAll();
 	}
 	
 	static public void main(String argv[]) {
 		try {
-			if(argv.length < 2) {
-				System.out.println("Usage: Client [port] [filenames]");
+			if(argv.length < 1) {
+				System.out.println("Usage: Client [port]");
 				System.exit(0);
 			}
+		    // Keyboard input
+		    Scanner sc = new Scanner(System.in);
 		    // Create the client socket
 		    port = Integer.parseInt(argv[0]);
 		    hostname = "localhost";
@@ -109,11 +103,10 @@ public class Client {
 
 		    // Get certificate
 		    cert = keystore.getCertificate("server");
-		    
 		    // BEGIN ACTUAL CLIENT STUFF
 		    // Let's receive a welcome message first
 		    // Open first socket
-		    cSock = newSocket();
+		    newSocket();
 		    in = cSock.getInputStream();
 		    BufferedReader br = new BufferedReader(new InputStreamReader(in));
 		    String s;
@@ -121,7 +114,44 @@ public class Client {
 		    	System.err.println("Error: Server welcome not received.");
 		    	System.exit(0);
 		    }
-		    System.out.println(s);
+		    //cSock.close();
+		    //in.close();
+		    System.out.println(s+'\n');
+		    Integer op;
+		    boolean end = false;
+		    while(!end) {
+			    System.out.println("Would you like to do anything else?");
+			    System.out.println("1 - ADD/UPDATE\t2 - DELETE\t3 - FETCH\n4 - LIST\t5 - VERIFY\t6 - EXIT");
+			    s = sc.nextLine();
+			    if(s.isEmpty()) { // Stop an exception if user just presses enter key
+		    		s = "0";
+		    	}
+		    	op = Integer.parseInt(s);
+			    switch(op) {
+			    	case 1:
+			    		System.out.println("Please enter the files you would like to upload (Absolute or relative paths) separated by a comma\neg. file.txt,file2.gif");
+			    		String[] files = sc.nextLine().split(",");
+			    		System.out.println("Recreating socket...");
+			    		newSocket();
+			    		initOut();
+			    		outData.writeBytes("\r\nCLOUDCOMMAND\r\nUPLOAD\r\n");
+			    		System.out.println("Sent command.");
+			    		upload(files);
+			    		closeAll();
+			    	break;
+			    	case 6:
+			    		newSocket();
+			    		initOut();
+			    		outData.writeBytes("\r\nCLOUDCOMMAND\r\nLOGOUT\r\n");
+			    		System.out.println("Bye bye!");
+			    		end = true;
+			    	break;
+			    	default:
+			    		System.out.println("Command not recognised.");
+			    	break;	
+			    }
+		    }
+		    is.close();
 		} catch (SSLPeerUnverifiedException e) {
 			System.out.println(e.getMessage());
 			System.exit(0);

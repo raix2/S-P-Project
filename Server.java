@@ -14,58 +14,64 @@ public class Server {
 	static private BufferedReader br;
 	static private Socket sock;
 	
-	public static void upload(String[] argv) throws IOException {
-		String folder;
-		if(argv.length > 1)
-			folder = argv[1]+"/";
-		else
-			folder = "";
+	public static boolean upload() throws IOException {
+		String folder = "Server/to/";
 	    String fname;
 	    long flen;
 	    File f;
 	    byte[] buffer = new byte[1024];
 	    int len;
-	    boolean end = false;
-	    while(true) {
+	    boolean endFile = false;
+	    boolean run = true;
+	    while(run) {
 		    sock = servSock.accept(); // Listening socket
 		    System.out.println("Receiving something!");
 		    in = sock.getInputStream();
 		    br = new BufferedReader(new InputStreamReader(in));
 		    while((fname = br.readLine()) != null && !fname.equals("STARTFILEREADING") && !fname.equals("ENDFILEUPLOAD")) {}
-		    System.out.println("Line break: "+fname);
-		    if(fname.equals("ENDFILEUPLOAD") || fname == null)
-		    	break;
-		    fname = br.readLine();
-		    flen = Long.parseLong(br.readLine());
-		    sock = servSock.accept();
-		    in = sock.getInputStream();
-		    f = new File(folder+fname); // Open file stream with specified name
-		    System.out.println("Created file stream for file "+fname+" with "+flen+" bytes");
-		    out = new FileOutputStream(f);
-		    while(!end && flen > 1024) {
-			    if((len = in.read(buffer)) != -1) {
-			    	out.write(buffer, 0, len);
-			    	flen -= len;
-			    }
-			    else
-			    	end = true;
+		    if(fname == null) {
+		    	run = false;
+		    	System.out.println("Client message error. Upload aborted.");
+		    	return false;
 		    }
-		    System.out.println("Left to read: "+flen+" bytes");
-		    if(end || (len = in.read(buffer, 0, (int) flen)) == -1)
-		    	System.out.println("File end reached unexpectedly");
+		    else if(fname.equals("ENDFILEUPLOAD")) {
+		    	run = false;
+		    	System.out.println("End of upload session.");
+		    	return true;
+		    }
 		    else {
-		    	while(flen > 0 && len != -1) {
-		    		out.write(buffer, 0, len);
-		    		flen -= len;
-		    		if(flen > 0)
-		    			len = in.read(buffer, 0, (int) flen);
-		    	}
+			    fname = br.readLine();
+			    flen = Long.parseLong(br.readLine());
+			    sock = servSock.accept();
+			    in = sock.getInputStream();
+			    f = new File(folder+fname); // Open file stream with specified name
+			    System.out.println("Created file stream for file "+fname+" with "+flen+" bytes");
+			    out = new FileOutputStream(f);
+			    while(!endFile && flen > 1024) {
+				    if((len = in.read(buffer)) != -1) {
+				    	out.write(buffer, 0, len);
+				    	flen -= len;
+				    }
+				    else
+				    	endFile = true;
+			    }
+			    System.out.println("Left to read: "+flen+" bytes");
+			    if(endFile || (len = in.read(buffer, 0, (int) flen)) == -1)
+			    	System.out.println("File end reached unexpectedly");
+			    else {
+			    	while(flen > 0 && len != -1) {
+			    		out.write(buffer, 0, len);
+			    		flen -= len;
+			    		if(flen > 0)
+			    			len = in.read(buffer, 0, (int) flen);
+			    	}
+			    }
+			    out.close();
+			    System.out.println("END");
 		    }
-		    out.close();
-		    System.out.println("File written!");
-		    System.out.println("END");
 	    }
 	    System.out.println("Transfer ended.");
+	    return true;
 	}
 	
 	public static void main(String argv[]) {
@@ -84,11 +90,45 @@ public class Server {
 			while(true) {
 				//Aaaaand we have connection!
 				sock = servSock.accept();
-				System.out.println("A user has connected!");
+				System.out.println("============================\nA user has connected!");
 				out = sock.getOutputStream();
 				dataOut = new DataOutputStream(out);
-				dataOut.writeBytes("Welcome to the Cloud\n");
-				System.out.println("Sent welcome =D");
+				dataOut.writeBytes("Welcome to the Cloud");
+				sock.close();
+				out.close();
+				dataOut.close();
+				// Take command from client
+				boolean run = true;
+				while(run) {
+					System.out.println("\nTaking commands...");
+					sock = servSock.accept();
+					in = sock.getInputStream();
+					br = new BufferedReader(new InputStreamReader(in));
+					String cmd;
+					while((cmd = br.readLine()) != null && !cmd.equals("CLOUDCOMMAND")) {}
+					if(cmd == null) {
+						run = false;
+						System.out.println("ERROR in client message");
+					}
+					else {
+						switch((cmd = br.readLine())) {
+							case "UPLOAD":
+								System.out.println("\nUpload command.");
+								if(!upload())
+									run = false;
+							break;
+							case "LOGOUT":
+								System.out.println("\nUser logged out.");
+								run = false;
+							break;
+							default:
+								System.out.println("\nCommand not recognised.");
+								run = false;
+							break;
+						}
+					}
+				}
+				System.out.println("User session ended.");
 			}
 		}
 		catch(Exception e) {
